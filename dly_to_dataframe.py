@@ -72,7 +72,7 @@ progname = os.path.basename(sys.argv[0])
 
 
 def usage(exit_code=None):
-    print(f'{progname}: [-d | --dly-dir <dir>] [-r | --regex] [--min-year <year>] [--max-year <year>] pattern')
+    print(f'{progname}: [-d | --dly-dir <dir>] [-r | --regex] [--min-year <year>] [--max-year <year>] [-f | --force] pattern')
     if exit_code is not None:
         sys.exit(exit_code)
 
@@ -85,6 +85,7 @@ if __name__ == '__main__':
     is_regex = False
     dly_dir = ''
     min_year, max_year = 1900, 2100
+    force = False
     n_args = len(sys.argv)
     i = 1
     
@@ -101,6 +102,8 @@ if __name__ == '__main__':
         elif sys.argv[i] == '--max-year':
             i += 1
             max_year = int(sys.argv[i])
+        elif sys.argv[i] in ('-f', '--force'):
+            force = True
         elif sys.argv[i][0] == '-':
             print(f'{progname}: {sys.argv[i]}: unknown option')
             sys.exit(1)
@@ -124,8 +127,9 @@ if __name__ == '__main__':
         dly_files = [f for f in all_dly_files if re.search(sys.argv[i], os.path.basename(f))]
 
     for dly_file in tqdm(dly_files, ascii=True, ncols=100):
-        df = read_dly_file(dly_file, min_year, max_year)
         out_file = os.path.join(os.path.dirname(dly_file),
                                 os.path.splitext(os.path.basename(dly_file))[0] + '.parquet.gz')
-        df.to_parquet(out_file, compression='gzip')
+        if not os.path.isfile(out_file) or force:
+            df = read_dly_file(dly_file, min_year, max_year)
+            df.to_parquet(out_file, compression='gzip')
     
