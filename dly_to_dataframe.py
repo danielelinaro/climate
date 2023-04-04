@@ -5,6 +5,7 @@ import sys
 import glob
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 
 __all__ = ['parse_line', 'month_to_df', 'read_dly_file']
@@ -122,11 +123,9 @@ if __name__ == '__main__':
         all_dly_files = sorted(glob.glob(os.path.join(dly_dir, '*.dly')))
         dly_files = [f for f in all_dly_files if re.search(sys.argv[i], os.path.basename(f))]
 
-    for dly_file in dly_files:
-        sys.stdout.write(f'Processing station {os.path.splitext(os.path.basename(dly_file))[0]}... ')
-        sys.stdout.flush()
+    for dly_file in tqdm(dly_files, ascii=True, ncols=100):
         df = read_dly_file(dly_file, min_year, max_year)
-        sys.stdout.write('done.\n')
-        out_file = os.path.join(os.path.dirname(dly_file), os.path.splitext(os.path.basename(dly_file))[0] + '.parquet.gzip')
+        out_file = os.path.join(os.path.dirname(dly_file),
+                                os.path.splitext(os.path.basename(dly_file))[0] + '.parquet.gz')
         df.to_parquet(out_file, compression='gzip')
     
