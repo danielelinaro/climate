@@ -1,3 +1,5 @@
+ghcnd_all
+*.gz
 *.csv
 *.zip
 *.dly
