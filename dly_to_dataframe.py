@@ -72,7 +72,8 @@ progname = os.path.basename(sys.argv[0])
 
 
 def usage(exit_code=None):
-    print(f'{progname}: [-d | --dly-dir <dir>] [-r | --regex] [--min-year <year>] [--max-year <year>] [-f | --force] pattern')
+    print(f'{progname}: [-d | --dly-dir <dir>] [-r | --regex] [--min-year <year>] [--max-year <year>] ' + \
+          '[-f | --force] [-c | --continent <name>] [pattern]')
     if exit_code is not None:
         sys.exit(exit_code)
 
@@ -86,6 +87,7 @@ if __name__ == '__main__':
     dly_dir = ''
     min_year, max_year = 1900, 2100
     force = False
+    continent = None
     n_args = len(sys.argv)
     i = 1
     
@@ -104,6 +106,9 @@ if __name__ == '__main__':
             max_year = int(sys.argv[i])
         elif sys.argv[i] in ('-f', '--force'):
             force = True
+        elif sys.argv[i] in ('-c', '--continent'):
+            i += 1
+            continent = sys.argv[i].lower()
         elif sys.argv[i][0] == '-':
             print(f'{progname}: {sys.argv[i]}: unknown option')
             sys.exit(1)
@@ -111,20 +116,50 @@ if __name__ == '__main__':
             break
         i += 1
 
-    if i == n_args:
+    if continent is None and i == n_args:
         usage(2)
-        
-    if dly_dir != '' and not os.path.isdir(dly_dir):
-        print(f'{progname}: {dly_dir}: no such directory.')
+
+    if is_regex and continent is not None:
+        print(f'{progname}: only one of -r and -c can be specified.')
         sys.exit(3)
 
-    if not is_regex:
+    if dly_dir != '' and not os.path.isdir(dly_dir):
+        print(f'{progname}: {dly_dir}: no such directory.')
+        sys.exit(4)
+
+    if is_regex:
+        all_dly_files = sorted(glob.glob(os.path.join(dly_dir, '*.dly')))
+        dly_files = [f for f in all_dly_files if re.search(sys.argv[i], os.path.basename(f))]
+    elif continent is not None:
+        country_codes_file = 'ghcnd-countries.txt'
+        if not os.path.isfile(country_codes_file):
+            print(f'{progname}: need `{country_codes_file}` to work')
+            sys.exit(5)
+        ghcnd_country_codes, country_names = [], []
+        with open(country_codes_file, 'r') as fid:
+            for line in fid:
+                ghcnd_country_codes.append(line[:2])
+                country_names.append(line[2:].strip())
+
+        import pandas as pd
+        capitals_file = os.path.join('geography', 'country-capitals.json')
+        if not os.path.isfile(capitals_file):
+            print(f'{progname}: need `{capitals_file}` to work')
+            sys.exit(6)
+        capitals = pd.read_json(capitals_file).set_index('CountryName')
+        capitals['ContinentName'] = capitals['ContinentName'].apply(lambda s: s.lower())
+        continents = set(capitals['ContinentName'].tolist())
+        if continent not in continents:
+            print(f'{progname}: "{continent}": unknown continent.')
+            sys.exit(7)
+
+        df = pd.DataFrame(data={'GHCNDCountryCode': ghcnd_country_codes}, index=country_names)
+        ghcnd_country_codes = df.join(capitals[capitals['ContinentName'] == continent], how='inner')['GHCNDCountryCode'].tolist()
+        dly_files = [f for f in sorted(glob.glob(os.path.join(dly_dir, '*.dly'))) if os.path.basename(f)[:2] in ghcnd_country_codes]
+    else:
         dly_files = [os.path.join(dly_dir, sys.argv[i])]
         if os.path.splitext(dly_files[0])[1] != '.dly':
             dly_files[0] += '.dly'
-    else:
-        all_dly_files = sorted(glob.glob(os.path.join(dly_dir, '*.dly')))
-        dly_files = [f for f in all_dly_files if re.search(sys.argv[i], os.path.basename(f))]
 
     for dly_file in tqdm(dly_files, ascii=True, ncols=100):
         out_file = os.path.join(os.path.dirname(dly_file),
